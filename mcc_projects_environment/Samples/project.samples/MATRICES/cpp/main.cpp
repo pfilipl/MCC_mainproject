@@ -1,5 +1,6 @@
 #include "mx.hpp"
 #include <cstring>
+#include <chrono>
 
 int main(int argc, char **argv) {
 	// std::cout << "Hello world!" << std::endl;
@@ -93,7 +94,15 @@ int main(int argc, char **argv) {
 		// std::cout << E << E.det() << std::endl;
 		// E.invert();
 		// std::cout << E << std::endl;
-		std::cout << E << E.det() << E.inverse() << std::endl;
+		std::cout << E << std::endl;
+		auto start = std::chrono::steady_clock::now();
+		std::cout << E.det() << std::endl;
+		auto stop_det = std::chrono::steady_clock::now();
+		std::cout << E.inverse() << std::endl;
+		auto stop_inverse = std::chrono::steady_clock::now();
+		std::chrono::duration<double> time_det = stop_det - start;
+		std::chrono::duration<double> time_inverse = stop_inverse - stop_det;
+		std::cout << time_det.count() << " " << time_inverse.count() << std::endl;
 	}
 	else{
 		mx<double> E(5);
