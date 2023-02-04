@@ -209,13 +209,14 @@ class mx{
 			else{
 				mx<T, BLOCK_SIZE> result(dim);
 				T x;
-				for(int i = 1; i <= dim; i++)
-					for(int j = 1; j <= dim; j++){
+				std::size_t row = threadIdx.y + blockIdx.y * blockDim.y;
+            	std::size_t col = threadIdx.x + blockIdx.x * blockDim.x;
+				for(int k = 1; k <= dim; k++){
+					if(k == 1)
 						x = 0;
-						for(int k = 1; k <= dim; k++)
-							x += (this -> get_val(i, k)) * A.get_val(k, j);
-						result.enter_val(i, j, x);
-					}
+						x += (this -> get_val(row + 1, k)) * A.get_val(k, col + 1);
+				}
+				result.enter_val(row + 1, col + 1, x);
 				this -> copy(result);
 			}	
 		}
@@ -233,15 +234,14 @@ class mx{
 		// determinant calculation helper
 		CUDA_CALLABLE_MEMBER int find_best_row(std::size_t& r) const{
 			int n, n_max = 0;
-			for(int i = 1; i <= dim; i++){
-				n = 0;
-				for(int j = 1; j <= dim; j++)
-					if((this -> get_val(i, j)) == 0)
-						n++;
-				if(n > n_max){
-					n_max = n;
-					r = i;
-				}
+			std::size_t row = threadIdx.y + blockIdx.y * blockDim.y;
+			n = 0;
+			for(int j = 1; j <= dim; j++)
+				if((this -> get_val(row + 1, j)) == 0)
+					n++;
+			if(n > n_max){
+				n_max = n;
+				r = i;
 			}	
 			return n_max;
 		}
@@ -309,11 +309,10 @@ class mx{
 				std::cout << "Matrix is noninversable!" << std::endl;
 			else{
 				mx<T, BLOCK_SIZE> cofactor(dim);
-				for(int i = 1; i <= dim; i++)
-					for(int j = 1; j <= dim; j++){
-						mx<T, BLOCK_SIZE> M(*this, i, j);
-						cofactor.enter_val(i, j, M.det());
-					}
+				std::size_t row = threadIdx.y + blockIdx.y * blockDim.y;
+            	std::size_t col = threadIdx.x + blockIdx.x * blockDim.x;
+				mx<T, BLOCK_SIZE> M(*this, row + 1, col + 1);
+				cofactor.enter_val(row + 1, col + 1, M.det());
 				cofactor.transpoze();
 				cofactor.multiply_scalar(1/det);
 				this -> copy(cofactor);
