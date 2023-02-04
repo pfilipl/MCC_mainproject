@@ -88,14 +88,21 @@ int main(int argc, char **argv) {
 	// std::cout << E << E.det() << std::endl;
 
 	if(argc > 1){
-		mx<int> E(std::stoi(argv[1]));
-		E.random_int(10);
-		std::cout << E << E.det() << std::endl;
+		mx<double> E(std::stoi(argv[1]));
+		E.random_int(10, -5);
+		// std::cout << E << E.det() << std::endl;
+		// E.invert();
+		// std::cout << E << std::endl;
+		std::cout << E << E.det() << E.inverse() << std::endl;
 	}
 	else{
-		mx<int> E(5);
+		mx<double> E(5);
 		E.random_int(10);
-		std::cout << E << E.det() << std::endl;
+		// std::cout << E << E.det() << std::endl;
+		// std::cout << E << E.det() << std::endl;
+		// E.invert();
+		// std::cout << E << std::endl;
+		std::cout << E << E.det() << E.inverse() << std::endl;
 	}
 
 	return 0;

@@ -194,7 +194,7 @@ class mx{
 				std::cout << "[E]: Invalid dimention! Multiplying is not possible!" <<std::endl;
 			else{
 				mx<T> result(dim);
-				double x;
+				T x;
 				for(int i = 1; i <= dim; i++)
 					for(int j = 1; j <= dim; j++){
 						x = 0;
@@ -286,6 +286,30 @@ class mx{
 					}
 			}
 			return x;
+		}
+
+		// inverse matrix
+		void invert(){
+			T det = this -> det();
+			if(!det)
+				std::cout << "Matrix is noninversable!" << std::endl;
+			else{
+				mx<T> cofactor(dim);
+				for(int i = 1; i <= dim; i++)
+					for(int j = 1; j <= dim; j++){
+						mx<T> M(*this, i, j);
+						cofactor.enter_val(i, j, M.det());
+					}
+				cofactor.transpoze();
+				cofactor.multiply_scalar(1/det);
+				this -> copy(cofactor);
+			}
+		}
+		mx inverse() const{
+			mx<T> result(dim);
+			result.copy(*this);
+			result.invert();
+			return result;
 		}
 };
 
