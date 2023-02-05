@@ -21,14 +21,14 @@ class mx{
 			if(dim == 0)
 				val = nullptr;
 			else{
-				val = new T[dim * dim];
+				cudaMallocManaged(&v, dim * dim * sizeof(T)); // val = new T[dim * dim];
 				this -> init(v);
 			}
 		}
 		CUDA_CALLABLE_MEMBER mx(const mx<T, BLOCK_SIZE>& A, std::size_t r, std::size_t c){
 			std::size_t dimA = A.get_dim();
 			dim = dimA - 1;
-			val = new T[dim * dim];
+			cudaMallocManaged(&v, dim * dim * sizeof(T)); // val = new T[dim * dim];
             std::size_t row = threadIdx.y + blockIdx.y * blockDim.y;
             std::size_t col = threadIdx.x + blockIdx.x * blockDim.x;
             if(row > r && col > c)
@@ -42,7 +42,7 @@ class mx{
 		}
 
 		// deconstructor
-		CUDA_CALLABLE_MEMBER ~mx() { delete [] val; }
+		CUDA_CALLABLE_MEMBER ~mx() { cudaFree(val); /* delete [] val; */ }
 
 		// initializing
 		CUDA_CALLABLE_MEMBER void init(T v = 0){
@@ -119,8 +119,8 @@ class mx{
 				return *this;
 			if(dim != A.get_dim()){
 				dim = A.get_dim();
-				delete [] val;
-				val = new T[dim * dim];
+				cudaFree(val); // delete [] val;
+				cudaMallocManaged(&v, dim * dim * sizeof(T)); // val = new T[dim * dim];
 			}
 			this -> copy(A);
 			return *this;
@@ -326,7 +326,7 @@ class mx{
 		}
 };
 
-template <typename T>
+template <typename T, int BLOCK_SIZE>
 std::ostream& operator<<(std::ostream& out, const mx<T, BLOCK_SIZE>& M){
 	M.print(out);
 	return out;
