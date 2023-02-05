@@ -1,22 +1,17 @@
-#ifdef __CUDACC__
-#define CUDA_CALLABLE_MEMBER __device__ __STDC_HOSTED__
-#else
-#define CUDA_CALLABLE_MEMBER
-#endif
-
 #ifndef MX_H_
 #define MX_H_
 
 #include <iostream>
+#include <cstdlib>
 #include <ctime>
 
-template <typename T, int BLOCK_SIZE>
+template <typename T>
 class mx{
 	std::size_t dim;
 	T* val;
 	public:
 		// constructors
-		CUDA_CALLABLE_MEMBER mx(std::size_t n = 0, T v = 0){
+		__device__ mx(std::size_t n = 0, T v = 0){
 			dim = n;
 			if(dim == 0)
 				val = nullptr;
@@ -25,7 +20,7 @@ class mx{
 				this -> init(v);
 			}
 		}
-		CUDA_CALLABLE_MEMBER mx(const mx<T, BLOCK_SIZE>& A, std::size_t r, std::size_t c){
+		__device__ mx(const mx<T>& A, std::size_t r, std::size_t c){
 			std::size_t dimA = A.get_dim();
 			dim = dimA - 1;
 			cudaMallocManaged(&v, dim * dim * sizeof(T)); // val = new T[dim * dim];
@@ -42,23 +37,23 @@ class mx{
 		}
 
 		// deconstructor
-		CUDA_CALLABLE_MEMBER ~mx() { cudaFree(val); /* delete [] val; */ }
+		__device__ ~mx() { cudaFree(val); /* delete [] val; */ }
 
 		// initializing
-		CUDA_CALLABLE_MEMBER void init(T v = 0){
+		__device__ void init(T v = 0){
             std::size_t row = threadIdx.y + blockIdx.y * blockDim.y;
             std::size_t col = threadIdx.x + blockIdx.x * blockDim.x;
 			val[row * dim + col] = v;
 		}
 
 		// random initializing
-		CUDA_CALLABLE_MEMBER void random(){
+		__device__ void random(){
 			srand(time(NULL));
             std::size_t row = threadIdx.y + blockIdx.y * blockDim.y;
             std::size_t col = threadIdx.x + blockIdx.x * blockDim.x;
 			val[row * dim + col] = rand();
 		}
-		CUDA_CALLABLE_MEMBER void random_int(int range, int val_min = 0){
+		__device__ void random_int(int range, int val_min = 0){
 			srand(time(NULL));
 			std::size_t row = threadIdx.y + blockIdx.y * blockDim.y;
             std::size_t col = threadIdx.x + blockIdx.x * blockDim.x;
@@ -66,7 +61,7 @@ class mx{
 		}
 
 		// making identity matrix
-		CUDA_CALLABLE_MEMBER void identity(){
+		__device__ void identity(){
 			this -> init();
 			std::size_t row = threadIdx.y + blockIdx.y * blockDim.y;
             std::size_t col = threadIdx.x + blockIdx.x * blockDim.x;
@@ -74,23 +69,23 @@ class mx{
 		}
 
 		// geting the 'dim' value
-		CUDA_CALLABLE_MEMBER std::size_t get_dim() const { return dim; }
+		__device__ std::size_t get_dim() const { return dim; }
 
 		// geting 'val[]' value
-		CUDA_CALLABLE_MEMBER T operator[](std::size_t n) const{
+		__device__ T operator[](std::size_t n) const{
 			return val[n];
 		}
-		CUDA_CALLABLE_MEMBER T get_val(std::size_t r, std::size_t c) const{
+		__device__ T get_val(std::size_t r, std::size_t c) const{
 			return val[(r - 1) * dim + (c - 1)];
 		}
 
 		// entering 'val[]' value
-		CUDA_CALLABLE_MEMBER void enter_val(std::size_t r, std::size_t c, T x){
+		__device__ void enter_val(std::size_t r, std::size_t c, T x){
 			val[(r - 1) * dim + (c - 1)] = x;
 		}
 
 		// printing matrix to the stream
-		CUDA_CALLABLE_MEMBER void print(std::ostream& out = std::cout) const{
+		__device__ void print(std::ostream& out = std::cout) const{
             std::size_t row = threadIdx.y + blockIdx.y * blockDim.y;
             std::size_t col = threadIdx.x + blockIdx.x * blockDim.x;
             if((row * dim + col) % dim == 0)
@@ -101,7 +96,7 @@ class mx{
 		}
 
 		// copying matrix
-		CUDA_CALLABLE_MEMBER void copy(const mx<T, BLOCK_SIZE>& A){
+		__device__ void copy(const mx<T>& A){
 			if(this != &A){
 				if(dim == A.get_dim()){
                     std::size_t row = threadIdx.y + blockIdx.y * blockDim.y;
@@ -114,7 +109,7 @@ class mx{
 		}
 
 		// assigning matrix
-		CUDA_CALLABLE_MEMBER mx& operator=(const mx<T, BLOCK_SIZE>& A){
+		__device__ mx& operator=(const mx<T>& A){
 			if(this == &A)
 				return *this;
 			if(dim != A.get_dim()){
@@ -127,7 +122,7 @@ class mx{
 		}
 
 		// matrices comparison
-		CUDA_CALLABLE_MEMBER bool operator==(const mx<T, BLOCK_SIZE>& A) const{
+		__device__ bool operator==(const mx<T>& A) const{
 			if(this == &A)
 				return true;
 			if(dim != A.get_dim())
@@ -140,7 +135,7 @@ class mx{
 		}
 
 		// adding matrix
-		CUDA_CALLABLE_MEMBER void add(const mx<T, BLOCK_SIZE>& A){
+		__device__ void add(const mx<T>& A){
 			if(dim == A.get_dim()){
                 std::size_t row = threadIdx.y + blockIdx.y * blockDim.y;
                 std::size_t col = threadIdx.x + blockIdx.x * blockDim.x;
@@ -149,52 +144,52 @@ class mx{
 			else
 				std::cout << "[E]: Invalid dimention! Addition is not possible!" << std::endl;
 		}
-		CUDA_CALLABLE_MEMBER mx operator+(const mx<T, BLOCK_SIZE>& A) const{
-			mx<T, BLOCK_SIZE> result(dim);
+		__device__ mx operator+(const mx<T>& A) const{
+			mx<T> result(dim);
 			result.copy(*this);
 			result.add(A);
 			return result;
 		}
-		CUDA_CALLABLE_MEMBER mx& operator+=(const mx<T, BLOCK_SIZE>& A){
+		__device__ mx& operator+=(const mx<T>& A){
 			this -> add(A);
 			return *this;
 		}
 
 		// multiplying by scalar
-		CUDA_CALLABLE_MEMBER void multiply_scalar(double x){
+		__device__ void multiply_scalar(double x){
 			std::size_t row = threadIdx.y + blockIdx.y * blockDim.y;
             std::size_t col = threadIdx.x + blockIdx.x * blockDim.x;
 			val[row * dim + col] *= x;
 		}
-		CUDA_CALLABLE_MEMBER mx operator*(double x) const{
-			mx<T, BLOCK_SIZE> result(dim);
+		__device__ mx operator*(double x) const{
+			mx<T> result(dim);
 			result.copy(*this);
 			result.multiply_scalar(-1.0);
 			return result;
 		}
-		CUDA_CALLABLE_MEMBER mx& operator*=(double x){
+		__device__ mx& operator*=(double x){
 			this -> multiply_scalar(x);
 			return *this;
 		}
 
 		// subtracting matrix
-		CUDA_CALLABLE_MEMBER void subtract(const mx<T, BLOCK_SIZE>& A){
+		__device__ void subtract(const mx<T>& A){
 			this -> add(A*-1.0);
 		}
-		CUDA_CALLABLE_MEMBER mx operator-(const mx<T, BLOCK_SIZE>& A) const{
-			mx<T, BLOCK_SIZE> result(dim);
+		__device__ mx operator-(const mx<T>& A) const{
+			mx<T> result(dim);
 			result.copy(*this);
 			result.subtract(A);
 			return result;
 		}
-		CUDA_CALLABLE_MEMBER mx& operator-=(const mx<T, BLOCK_SIZE>& A){
+		__device__ mx& operator-=(const mx<T>& A){
 			this -> subtract(A);
 			return *this;
 		}
 
 		// transpozition
-		CUDA_CALLABLE_MEMBER void transpoze(){
-			mx<T, BLOCK_SIZE> temp(dim);
+		__device__ void transpoze(){
+			mx<T> temp(dim);
 			temp.copy(*this);
 			this -> init();
 			std::size_t row = threadIdx.y + blockIdx.y * blockDim.y;
@@ -203,11 +198,11 @@ class mx{
 		}
 
 		// multiplying by matrix
-		CUDA_CALLABLE_MEMBER void multiply_matrix(const mx<T, BLOCK_SIZE>& A){
+		__device__ void multiply_matrix(const mx<T>& A){
 			if(dim != A.get_dim())
 				std::cout << "[E]: Invalid dimention! Multiplying is not possible!" <<std::endl;
 			else{
-				mx<T, BLOCK_SIZE> result(dim);
+				mx<T> result(dim);
 				T x;
 				std::size_t row = threadIdx.y + blockIdx.y * blockDim.y;
             	std::size_t col = threadIdx.x + blockIdx.x * blockDim.x;
@@ -220,19 +215,19 @@ class mx{
 				this -> copy(result);
 			}	
 		}
-		CUDA_CALLABLE_MEMBER mx operator*(const mx<T, BLOCK_SIZE>& A) const{
-			mx<T, BLOCK_SIZE> result(dim);
+		__device__ mx operator*(const mx<T>& A) const{
+			mx<T> result(dim);
 			result.copy(*this);
 			result.multiply_matrix(A);
 			return result;
 		}
-		CUDA_CALLABLE_MEMBER mx& operator*=(const mx<T, BLOCK_SIZE>& A){
+		__device__ mx& operator*=(const mx<T>& A){
 			this -> multiply_matrix(A);
 			return *this;
 		}
 
 		// determinant calculation helper
-		CUDA_CALLABLE_MEMBER int find_best_row(std::size_t& r) const{
+		__device__ int find_best_row(std::size_t& r) const{
 			int n, n_max = 0;
 			std::size_t row = threadIdx.y + blockIdx.y * blockDim.y;
 			n = 0;
@@ -246,15 +241,15 @@ class mx{
 			return n_max;
 		}
 
-		CUDA_CALLABLE_MEMBER int find_best_column(std::size_t& c) const{
-			mx<T, BLOCK_SIZE> temp(dim);
+		__device__ int find_best_column(std::size_t& c) const{
+			mx<T> temp(dim);
 			temp.copy(*this);
 			temp.transpoze();
 			return temp.find_best_row(c);
 		}
 
 		// determinant
-		CUDA_CALLABLE_MEMBER T det() const{
+		__device__ T det() const{
 			T x = 0;
 			switch(dim){
 				case 0:
@@ -281,7 +276,7 @@ class mx{
 					if(zero_count_r >= zero_count_c){
 						n = r;
 						for(int i = 1; i <= dim; i++){
-							mx<T, BLOCK_SIZE> M(*this, n, i);
+							mx<T> M(*this, n, i);
 							if((1 + i) % 2 == 0)
 								x += (this -> get_val(n, i)) * M.det();
 							else
@@ -291,7 +286,7 @@ class mx{
 					else{
 						n = c;
 						for(int i = 1; i <= dim; i++){
-							mx<T, BLOCK_SIZE> M(*this, i, n);
+							mx<T> M(*this, i, n);
 							if((1 + i) % 2 == 0)
 								x += (this -> get_val(i, n)) * M.det();
 							else
@@ -303,31 +298,31 @@ class mx{
 		}
 
 		// inverse matrix
-		CUDA_CALLABLE_MEMBER void invert(){
+		__device__ void invert(){
 			T det = this -> det();
 			if(!det)
 				std::cout << "Matrix is noninversable!" << std::endl;
 			else{
-				mx<T, BLOCK_SIZE> cofactor(dim);
+				mx<T> cofactor(dim);
 				std::size_t row = threadIdx.y + blockIdx.y * blockDim.y;
             	std::size_t col = threadIdx.x + blockIdx.x * blockDim.x;
-				mx<T, BLOCK_SIZE> M(*this, row + 1, col + 1);
+				mx<T> M(*this, row + 1, col + 1);
 				cofactor.enter_val(row + 1, col + 1, M.det());
 				cofactor.transpoze();
 				cofactor.multiply_scalar(1/det);
 				this -> copy(cofactor);
 			}
 		}
-		CUDA_CALLABLE_MEMBER mx inverse() const{
-			mx<T, BLOCK_SIZE> result(dim);
+		__device__ mx inverse() const{
+			mx<T> result(dim);
 			result.copy(*this);
 			result.invert();
 			return result;
 		}
 };
 
-template <typename T, int BLOCK_SIZE>
-std::ostream& operator<<(std::ostream& out, const mx<T, BLOCK_SIZE>& M){
+template <typename T>
+std::ostream& operator<<(std::ostream& out, const mx<T>& M){
 	M.print(out);
 	return out;
 }
