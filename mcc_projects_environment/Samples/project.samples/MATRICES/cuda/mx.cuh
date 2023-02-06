@@ -11,19 +11,19 @@ class mx{
 	T* val;
 	public:
 		// constructors
-		__device__ mx(std::size_t n = 0, T v = 0){
+		__host__ mx(std::size_t n = 0, T v = 0){
 			dim = n;
 			if(dim == 0)
 				val = nullptr;
 			else{
-				cudaMallocManaged(&v, dim * dim * sizeof(T)); // val = new T[dim * dim];
+				cudaMallocManaged(&val, dim * dim * sizeof(T)); // val = new T[dim * dim];
 				this -> init(v);
 			}
 		}
-		__device__ mx(const mx<T>& A, std::size_t r, std::size_t c){
+		__host__ __device__ mx(const mx<T>& A, std::size_t r, std::size_t c){
 			std::size_t dimA = A.get_dim();
 			dim = dimA - 1;
-			cudaMallocManaged(&v, dim * dim * sizeof(T)); // val = new T[dim * dim];
+			cudaMallocManaged(&val, dim * dim * sizeof(T)); // val = new T[dim * dim];
             std::size_t row = threadIdx.y + blockIdx.y * blockDim.y;
             std::size_t col = threadIdx.x + blockIdx.x * blockDim.x;
             if(row > r && col > c)
@@ -37,7 +37,7 @@ class mx{
 		}
 
 		// deconstructor
-		__device__ ~mx() { cudaFree(val); /* delete [] val; */ }
+		__host__ __device__ ~mx() { cudaFree(val); /* delete [] val; */ }
 
 		// initializing
 		__device__ void init(T v = 0){
@@ -115,7 +115,7 @@ class mx{
 			if(dim != A.get_dim()){
 				dim = A.get_dim();
 				cudaFree(val); // delete [] val;
-				cudaMallocManaged(&v, dim * dim * sizeof(T)); // val = new T[dim * dim];
+				cudaMallocManaged(&val, dim * dim * sizeof(T)); // val = new T[dim * dim];
 			}
 			this -> copy(A);
 			return *this;
@@ -236,7 +236,7 @@ class mx{
 					n++;
 			if(n > n_max){
 				n_max = n;
-				r = i;
+				r = row;
 			}	
 			return n_max;
 		}

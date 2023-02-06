@@ -3,7 +3,7 @@
 
 int main(int argc, char **argv){
   
-	std::size_t N, THREADS, ITERATIONS, DIMS;
+	int N, THREADS, ITERATIONS, DIMS;
 	N = argc > 1 ? atoi(argv[1]) : 64;
 	THREADS = argc > 2 ? atoi(argv[2]) : 16;
 	ITERATIONS = argc > 3 ? atoi(argv[3]) : 1;
@@ -15,10 +15,11 @@ int main(int argc, char **argv){
   	dim3 number_of_blocks((N / threads_per_block.x) + 1, (N / threads_per_block.y) + 1, 1);
 
 	for(int i = 1; i <= ITERATIONS; i++){
-		mx<int> A(DIMS);
-		A.random_int<<<number_of_blocks, threads_per_block>>>(10);
-		cudaDeviceSynchronize();
-		A.print<<<number_of_blocks, threads_per_block>>>();
+		mx<int> A(DIMS, 5);
+		mx<int>* a = &A;
+		// a -> random_int(10);
+		// cudaDeviceSynchronize();
+		A.print();
 		cudaDeviceSynchronize();
 	}
 }
