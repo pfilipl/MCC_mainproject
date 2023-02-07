@@ -11,7 +11,7 @@ class mx{
 	T* val;
 	public:
 		// constructors
-		__host__ mx(std::size_t n = 0, T v = 0){
+		__host__ __device__ mx(std::size_t n = 0, T v = 0){
 			dim = n;
 			if(dim == 0)
 				val = nullptr;
@@ -40,20 +40,20 @@ class mx{
 		__host__ __device__ ~mx() { cudaFree(val); /* delete [] val; */ }
 
 		// initializing
-		__device__ void init(T v = 0){
+		__host__ __device__ void init(T v = 0){
             std::size_t row = threadIdx.y + blockIdx.y * blockDim.y;
             std::size_t col = threadIdx.x + blockIdx.x * blockDim.x;
 			val[row * dim + col] = v;
 		}
 
 		// random initializing
-		__device__ void random(){
+		__host__ __device__ void random(){
 			srand(time(NULL));
             std::size_t row = threadIdx.y + blockIdx.y * blockDim.y;
             std::size_t col = threadIdx.x + blockIdx.x * blockDim.x;
 			val[row * dim + col] = rand();
 		}
-		__device__ void random_int(int range, int val_min = 0){
+		__host__ __device__ void random_int(int range, int val_min = 0){
 			srand(time(NULL));
 			std::size_t row = threadIdx.y + blockIdx.y * blockDim.y;
             std::size_t col = threadIdx.x + blockIdx.x * blockDim.x;
@@ -61,7 +61,7 @@ class mx{
 		}
 
 		// making identity matrix
-		__device__ void identity(){
+		__host__ __device__ void identity(){
 			this -> init();
 			std::size_t row = threadIdx.y + blockIdx.y * blockDim.y;
             std::size_t col = threadIdx.x + blockIdx.x * blockDim.x;
@@ -69,23 +69,23 @@ class mx{
 		}
 
 		// geting the 'dim' value
-		__device__ std::size_t get_dim() const { return dim; }
+		__host__ __device__ std::size_t get_dim() const { return dim; }
 
 		// geting 'val[]' value
-		__device__ T operator[](std::size_t n) const{
+		__host__ __device__ T operator[](std::size_t n) const{
 			return val[n];
 		}
-		__device__ T get_val(std::size_t r, std::size_t c) const{
+		__host__ __device__ T get_val(std::size_t r, std::size_t c) const{
 			return val[(r - 1) * dim + (c - 1)];
 		}
 
 		// entering 'val[]' value
-		__device__ void enter_val(std::size_t r, std::size_t c, T x){
+		__host__ __device__ void enter_val(std::size_t r, std::size_t c, T x){
 			val[(r - 1) * dim + (c - 1)] = x;
 		}
 
 		// printing matrix to the stream
-		__device__ void print(std::ostream& out = std::cout) const{
+		__host__ __device__ void print(std::ostream& out = std::cout) const{
             std::size_t row = threadIdx.y + blockIdx.y * blockDim.y;
             std::size_t col = threadIdx.x + blockIdx.x * blockDim.x;
             if((row * dim + col) % dim == 0)
@@ -96,7 +96,7 @@ class mx{
 		}
 
 		// copying matrix
-		__device__ void copy(const mx<T>& A){
+		__host__ __device__ void copy(const mx<T>& A){
 			if(this != &A){
 				if(dim == A.get_dim()){
                     std::size_t row = threadIdx.y + blockIdx.y * blockDim.y;
@@ -109,7 +109,7 @@ class mx{
 		}
 
 		// assigning matrix
-		__device__ mx& operator=(const mx<T>& A){
+		__host__ __device__ mx& operator=(const mx<T>& A){
 			if(this == &A)
 				return *this;
 			if(dim != A.get_dim()){
@@ -122,7 +122,7 @@ class mx{
 		}
 
 		// matrices comparison
-		__device__ bool operator==(const mx<T>& A) const{
+		__host__ __device__ bool operator==(const mx<T>& A) const{
 			if(this == &A)
 				return true;
 			if(dim != A.get_dim())
@@ -135,7 +135,7 @@ class mx{
 		}
 
 		// adding matrix
-		__device__ void add(const mx<T>& A){
+		__host__ __device__ void add(const mx<T>& A){
 			if(dim == A.get_dim()){
                 std::size_t row = threadIdx.y + blockIdx.y * blockDim.y;
                 std::size_t col = threadIdx.x + blockIdx.x * blockDim.x;
@@ -144,51 +144,51 @@ class mx{
 			else
 				std::cout << "[E]: Invalid dimention! Addition is not possible!" << std::endl;
 		}
-		__device__ mx operator+(const mx<T>& A) const{
+		__host__ __device__ mx operator+(const mx<T>& A) const{
 			mx<T> result(dim);
 			result.copy(*this);
 			result.add(A);
 			return result;
 		}
-		__device__ mx& operator+=(const mx<T>& A){
+		__host__ __device__ mx& operator+=(const mx<T>& A){
 			this -> add(A);
 			return *this;
 		}
 
 		// multiplying by scalar
-		__device__ void multiply_scalar(double x){
+		__host__ __device__ void multiply_scalar(double x){
 			std::size_t row = threadIdx.y + blockIdx.y * blockDim.y;
             std::size_t col = threadIdx.x + blockIdx.x * blockDim.x;
 			val[row * dim + col] *= x;
 		}
-		__device__ mx operator*(double x) const{
+		__host__ __device__ mx operator*(double x) const{
 			mx<T> result(dim);
 			result.copy(*this);
 			result.multiply_scalar(-1.0);
 			return result;
 		}
-		__device__ mx& operator*=(double x){
+		__host__ __device__ mx& operator*=(double x){
 			this -> multiply_scalar(x);
 			return *this;
 		}
 
 		// subtracting matrix
-		__device__ void subtract(const mx<T>& A){
+		__host__ __device__ void subtract(const mx<T>& A){
 			this -> add(A*-1.0);
 		}
-		__device__ mx operator-(const mx<T>& A) const{
+		__host__ __device__ mx operator-(const mx<T>& A) const{
 			mx<T> result(dim);
 			result.copy(*this);
 			result.subtract(A);
 			return result;
 		}
-		__device__ mx& operator-=(const mx<T>& A){
+		__host__ __device__ mx& operator-=(const mx<T>& A){
 			this -> subtract(A);
 			return *this;
 		}
 
 		// transpozition
-		__device__ void transpoze(){
+		__host__ __device__ void transpoze(){
 			mx<T> temp(dim);
 			temp.copy(*this);
 			this -> init();
@@ -198,7 +198,7 @@ class mx{
 		}
 
 		// multiplying by matrix
-		__device__ void multiply_matrix(const mx<T>& A){
+		__host__ __device__ void multiply_matrix(const mx<T>& A){
 			if(dim != A.get_dim())
 				std::cout << "[E]: Invalid dimention! Multiplying is not possible!" <<std::endl;
 			else{
@@ -215,19 +215,19 @@ class mx{
 				this -> copy(result);
 			}	
 		}
-		__device__ mx operator*(const mx<T>& A) const{
+		__host__ __device__ mx operator*(const mx<T>& A) const{
 			mx<T> result(dim);
 			result.copy(*this);
 			result.multiply_matrix(A);
 			return result;
 		}
-		__device__ mx& operator*=(const mx<T>& A){
+		__host__ __device__ mx& operator*=(const mx<T>& A){
 			this -> multiply_matrix(A);
 			return *this;
 		}
 
 		// determinant calculation helper
-		__device__ int find_best_row(std::size_t& r) const{
+		__host__ __device__ int find_best_row(std::size_t& r) const{
 			int n, n_max = 0;
 			std::size_t row = threadIdx.y + blockIdx.y * blockDim.y;
 			n = 0;
@@ -241,7 +241,7 @@ class mx{
 			return n_max;
 		}
 
-		__device__ int find_best_column(std::size_t& c) const{
+		__host__ __device__ int find_best_column(std::size_t& c) const{
 			mx<T> temp(dim);
 			temp.copy(*this);
 			temp.transpoze();
@@ -249,7 +249,7 @@ class mx{
 		}
 
 		// determinant
-		__device__ T det() const{
+		__host__ __device__ T det() const{
 			T x = 0;
 			switch(dim){
 				case 0:
@@ -298,7 +298,7 @@ class mx{
 		}
 
 		// inverse matrix
-		__device__ void invert(){
+		__host__ __device__ void invert(){
 			T det = this -> det();
 			if(!det)
 				std::cout << "Matrix is noninversable!" << std::endl;
@@ -313,7 +313,7 @@ class mx{
 				this -> copy(cofactor);
 			}
 		}
-		__device__ mx inverse() const{
+		__host__ __device__ mx inverse() const{
 			mx<T> result(dim);
 			result.copy(*this);
 			result.invert();
