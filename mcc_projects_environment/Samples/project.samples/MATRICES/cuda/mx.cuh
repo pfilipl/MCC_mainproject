@@ -85,7 +85,7 @@ class mx{
 		}
 
 		// printing matrix to the stream
-		__host__ __device__ void print(std::ostream& out = std::cout) const{
+		__host__ __device__ void print(std::ostream& out) const{
             std::size_t row = threadIdx.y + blockIdx.y * blockDim.y;
             std::size_t col = threadIdx.x + blockIdx.x * blockDim.x;
             if((row * dim + col) % dim == 0)

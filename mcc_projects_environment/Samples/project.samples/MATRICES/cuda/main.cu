@@ -13,10 +13,10 @@
 //         } \
 //     }while(0)
 
-__global__ void cudaMain(){
+__global__ void cudaMain(std::ostream& out){
 	mx<int> A(10);
 	A.random_int(10);
-	A.print();
+	A.print(out);
 }
 
 int main(int argc, char **argv){
@@ -33,6 +33,6 @@ int main(int argc, char **argv){
   	dim3 number_of_blocks((N / threads_per_block.x) + 1, (N / threads_per_block.y) + 1, 1);
 
 	for(int i = 1; i <= ITERATIONS; i++){
-		cudaMain<<< number_of_blocks, threads_per_block >>>();
+		cudaMain<<< number_of_blocks, threads_per_block >>>(std::cout);
 	}
 }
