@@ -6,6 +6,16 @@
 #include <ctime>
 
 template <typename T>
+void printMatrix(T& val, std::size_t dim){
+	for(int i = 0; i < dim * dim; i++)
+		if(i % dim == 0)
+			std::cout << std::endl << val[i] << " ";
+		else
+			std::cout << val[i] << " ";
+	std::cout << std::endl;
+}
+
+template <typename T>
 class mx{
 	std::size_t dim;
 	T* val;
@@ -37,7 +47,7 @@ class mx{
 		}
 
 		// deconstructor
-		__host__ __device__ ~mx() { cudaFree(val); /* delete [] val; */ }
+		__host__ __device__ ~mx() { cudaFreeHost(val); /* delete [] val; */ }
 
 		// initializing
 		__host__ __device__ void init(T v = 0){
@@ -86,13 +96,8 @@ class mx{
 
 		// printing matrix to the stream
 		__host__ __device__ void print(std::ostream& out) const{
-            std::size_t row = threadIdx.y + blockIdx.y * blockDim.y;
-            std::size_t col = threadIdx.x + blockIdx.x * blockDim.x;
-            if((row * dim + col) % dim == 0)
-                out << std::endl << val[row * dim + col] << " ";
-            else
-                out << val[row * dim + col] << " ";
-			out << std::endl;
+			if(threadIdx.x == 0)
+				printMatrix(val, dim);
 		}
 
 		// copying matrix
@@ -114,7 +119,7 @@ class mx{
 				return *this;
 			if(dim != A.get_dim()){
 				dim = A.get_dim();
-				cudaFree(val); // delete [] val;
+				cudaFreeHost(val); // delete [] val;
 				cudaMallocManaged(&val, dim * dim * sizeof(T)); // val = new T[dim * dim];
 			}
 			this -> copy(A);
