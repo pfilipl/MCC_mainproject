@@ -5,49 +5,75 @@
 #include <cstdlib>
 #include <ctime>
 
-template <typename T>
-void printMatrix(T& val, std::size_t dim){
-	for(int i = 0; i < dim * dim; i++)
-		if(i % dim == 0)
-			std::cout << std::endl << val[i] << " ";
-		else
-			std::cout << val[i] << " ";
-	std::cout << std::endl;
+#define gpuErrchk(ans) { gpuAssert((ans), __FILE__, __LINE__); }
+inline void gpuAssert(cudaError_t code, const char* file, int line, bool abort = true)
+{
+    if (code != cudaSuccess)
+    {
+        fprintf(stderr,"GPUassert: %s %s %d\n", cudaGetErrorString(code), file, line);
+        if (abort) exit(code);
+    }
 }
 
 template <typename T>
+void printMatrix(T& val, std::size_t dim){
+	printf("Hello world!");
+	// for(int i = 0; i < dim * dim; i++)
+	// 	if(i % dim == 0)
+	// 		std::cout << std::endl << val[i] << " ";
+	// 	else
+	// 		std::cout << val[i] << " ";
+	// std::cout << std::endl;
+}
+
+template <class T>
 class mx{
 	std::size_t dim;
-	T* val;
+	// T* val;
 	public:
+		T* val;
 		// constructors
-		__host__ __device__ mx(std::size_t n = 0, T v = 0){
+		__host__ __device__ mx() {}
+
+		// __host__ __device__ mx(std::size_t n = 0, T v = 0){
+		// 	dim = n;
+		// 	if(dim == 0)
+		// 		val = nullptr;
+		// 	else{
+		// 		cudaMallocManaged(&val, dim * dim * sizeof(T)); // val = new T[dim * dim];
+		// 		this -> init(v);
+		// 	}
+		// }
+		// __host__ __device__ mx(const mx<T>& A, std::size_t r, std::size_t c){
+		// 	std::size_t dimA = A.get_dim();
+		// 	dim = dimA - 1;
+		// 	cudaMallocManaged(&val, dim * dim * sizeof(T)); // val = new T[dim * dim];
+        //     std::size_t row = threadIdx.y + blockIdx.y * blockDim.y;
+        //     std::size_t col = threadIdx.x + blockIdx.x * blockDim.x;
+        //     if(row > r && col > c)
+        //         this -> set_val(row, col, A.get_val(row + 1, col + 1));
+        //     else if(row > r)
+        //         this -> set_val(row, col + 1, A.get_val(row + 1, col + 1));
+        //     else if(col > c)
+        //         this -> set_val(row + 1, col, A.get_val(row + 1, col + 1));
+        //     else if(row != r && col != c)
+        //         this -> set_val(row + 1, col + 1, A.get_val(row + 1, col + 1));
+		// }
+
+		__host__ void devAlloc(std::size_t n){
 			dim = n;
-			if(dim == 0)
-				val = nullptr;
-			else{
-				cudaMallocManaged(&val, dim * dim * sizeof(T)); // val = new T[dim * dim];
-				this -> init(v);
-			}
-		}
-		__host__ __device__ mx(const mx<T>& A, std::size_t r, std::size_t c){
-			std::size_t dimA = A.get_dim();
-			dim = dimA - 1;
-			cudaMallocManaged(&val, dim * dim * sizeof(T)); // val = new T[dim * dim];
-            std::size_t row = threadIdx.y + blockIdx.y * blockDim.y;
-            std::size_t col = threadIdx.x + blockIdx.x * blockDim.x;
-            if(row > r && col > c)
-                this -> enter_val(row, col, A.get_val(row + 1, col + 1));
-            else if(row > r)
-                this -> enter_val(row, col + 1, A.get_val(row + 1, col + 1));
-            else if(col > c)
-                this -> enter_val(row + 1, col, A.get_val(row + 1, col + 1));
-            else if(row != r && col != c)
-                this -> enter_val(row + 1, col + 1, A.get_val(row + 1, col + 1));
+			gpuErrchk(cudaMalloc(&val, dim * dim * sizeof(T)));
 		}
 
 		// deconstructor
-		__host__ __device__ ~mx() { cudaFreeHost(val); /* delete [] val; */ }
+		__host__ __device__ ~mx() {}
+
+		// __host__ __device__ ~mx() { cudaFreeHost(val); /* delete [] val; */ }
+
+		__host__ void devFree(){
+			gpuErrchk(cudaFree(val));
+			dim = 0;
+		}
 
 		// initializing
 		__host__ __device__ void init(T v = 0){
@@ -81,6 +107,8 @@ class mx{
 		// geting the 'dim' value
 		__host__ __device__ std::size_t get_dim() const { return dim; }
 
+		__host__ __device__ std::size_t len() const {return dim * dim * sizeof(T); }
+
 		// geting 'val[]' value
 		__host__ __device__ T operator[](std::size_t n) const{
 			return val[n];
@@ -89,15 +117,16 @@ class mx{
 			return val[(r - 1) * dim + (c - 1)];
 		}
 
-		// entering 'val[]' value
-		__host__ __device__ void enter_val(std::size_t r, std::size_t c, T x){
+		// setting 'val[]' value
+		__host__ __device__ void set_val(std::size_t r, std::size_t c, T x){
 			val[(r - 1) * dim + (c - 1)] = x;
 		}
 
 		// printing matrix to the stream
 		__host__ __device__ void print(std::ostream& out) const{
-			if(threadIdx.x == 0)
-				printMatrix(val, dim);
+			// printf("Hello world!");
+			// if(threadIdx.x == 0)
+			// 	printMatrix(val, dim);
 		}
 
 		// copying matrix
@@ -199,7 +228,7 @@ class mx{
 			this -> init();
 			std::size_t row = threadIdx.y + blockIdx.y * blockDim.y;
             std::size_t col = threadIdx.x + blockIdx.x * blockDim.x;
-			this -> enter_val(col + 1, row + 1, temp.get_val(row + 1, col + 1));
+			this -> set_val(col + 1, row + 1, temp.get_val(row + 1, col + 1));
 		}
 
 		// multiplying by matrix
@@ -216,7 +245,7 @@ class mx{
 						x = 0;
 						x += (this -> get_val(row + 1, k)) * A.get_val(k, col + 1);
 				}
-				result.enter_val(row + 1, col + 1, x);
+				result.set_val(row + 1, col + 1, x);
 				this -> copy(result);
 			}	
 		}
@@ -312,7 +341,7 @@ class mx{
 				std::size_t row = threadIdx.y + blockIdx.y * blockDim.y;
             	std::size_t col = threadIdx.x + blockIdx.x * blockDim.x;
 				mx<T> M(*this, row + 1, col + 1);
-				cofactor.enter_val(row + 1, col + 1, M.det());
+				cofactor.set_val(row + 1, col + 1, M.det());
 				cofactor.transpoze();
 				cofactor.multiply_scalar(1/det);
 				this -> copy(cofactor);

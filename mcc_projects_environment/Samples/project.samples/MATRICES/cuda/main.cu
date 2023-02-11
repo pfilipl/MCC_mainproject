@@ -1,26 +1,14 @@
 #include "mx.cuh"
 #include <chrono>
-#include <fstream>
+#include <vector>
+// #include <fstream>
 
-// #define cudaCheckErrors(msg) \
-//     do{ \
-//         cudaError_t __err = cudaGetLastError(); \
-//         if (__err != cudaSuccess) { \
-//             fprintf(stderr, "Fatal error: %s (%s at %s:%d)\n", \
-//                 msg, cudaGetErrorString(__err), \
-//                 __FILE__, __LINE__); \
-//             fprintf(stderr, "*** FAILED - ABORTING\n"); \
-//             exit(1); \
-//         } \
-//     }while(0)
-
-__global__ void cudaMain(std::ostream& out, int DIMS){
-	mx<int> A(DIMS);
-	__syncthreads();
-	A.random_int(10);
-	__syncthreads();
-	A.print(out);
-	__syncthreads();
+template <typename T>
+__global__ void test(mx<T> A, T v){
+	std::size_t row = threadIdx.y + blockIdx.y * blockDim.y;
+	std::size_t col = threadIdx.x + blockIdx.x * blockDim.x;
+	if(row < A.len() && col < A.len())
+		A.set_val(row + 1, col + 1, v);
 }
 
 int main(int argc, char **argv){
@@ -37,10 +25,23 @@ int main(int argc, char **argv){
 
 	// std::ofstream fout("out.txt");
 
+	gpuErrchk(cudaSetDevice(0));
+    gpuErrchk(cudaFree(0));
+
 	for(int i = 1; i <= ITERATIONS; i++){
-		cudaMain<<< number_of_blocks, threads_per_block >>>(std::cout, DIMS);
-		cudaDeviceSynchronize();
+		mx<int> A;
+		A.devAlloc(DIMS);
+		int v = 5;
+		test<<< number_of_blocks, threads_per_block >>>(A, v);
+		gpuErrchk(cudaPeekAtLastError());
+    	gpuErrchk(cudaDeviceSynchronize());
+		std::vector<int> B(DIMS * DIMS);
+		gpuErrchk(cudaMemcpy(&B[0], A.val, A.len(), cudaMemcpyDeviceToHost));
+		A.devFree();
+		for(int i = 0; i < DIMS * DIMS; i++)
+			std::cout << i << " = " << B[i] << std::endl;
 	}
 
 	// fout.close();
+	return 0;
 }
