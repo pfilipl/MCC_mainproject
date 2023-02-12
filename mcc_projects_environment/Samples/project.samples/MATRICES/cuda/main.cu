@@ -16,26 +16,23 @@ int main(int argc, char **argv){
 	dim3 threads_per_block(THREADS, THREADS, 1);
   	dim3 number_of_blocks((DIMS / threads_per_block.x) + 1, (DIMS / threads_per_block.y) + 1, 1);
 
+	set_NOB(number_of_blocks);
+	set_TPB(threads_per_block);
+
+	dim3 NOB = number_of_blocks;
+	dim3 TPB = threads_per_block;
+
 	// std::ofstream fout("out.txt");
 
 	gpuErrchk(cudaSetDevice(0));
     gpuErrchk(cudaFree(0));
 
 	for(int i = 1; i <= ITERATIONS; i++){
-		mx<double> A(number_of_blocks, threads_per_block, DIMS, 5);
-		std::cout << A;
-		A.identity(number_of_blocks, threads_per_block);
-		std::cout << A;
-		A.random();
-		std::cout << A;
-		A.random_int(10);
-		std::cout << A;
-		mx<double> B(number_of_blocks, threads_per_block, A, 2, 3);
-		std::cout << B;
-		mx<double> C;
-		C.copy(number_of_blocks, threads_per_block, B);
-		std::cout << C;
-		B.minor(number_of_blocks, threads_per_block, 2, 3);
+		mx<double> A(NOB, TPB, DIMS, 5);
+		mx<double> B(NOB, TPB, DIMS);
+		B.random_int(10);
+		std::cout << A << B;
+		B.transpoze(NOB, TPB);
 		std::cout << B;
 
 		A.devFree();

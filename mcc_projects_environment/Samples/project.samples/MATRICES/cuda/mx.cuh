@@ -5,25 +5,19 @@
 #include <cstdlib>
 #include <ctime>
 
-#define gpuErrchk(ans) { gpuAssert((ans), __FILE__, __LINE__); }
-inline void gpuAssert(cudaError_t code, const char* file, int line, bool abort = true)
-{
-    if (code != cudaSuccess)
-    {
-        fprintf(stderr,"GPUassert: %s %s %d\n", cudaGetErrorString(code), file, line);
-        if (abort) exit(code);
-    }
-}
+dim3 NOB_global = 1;
+dim3 TPB_global = 4;
 
-template <typename T>
-void printMatrix(T& val, std::size_t dim){
-	printf("Hello world!");
-	// for(int i = 0; i < dim * dim; i++)
-	// 	if(i % dim == 0)
-	// 		std::cout << std::endl << val[i] << " ";
-	// 	else
-	// 		std::cout << val[i] << " ";
-	// std::cout << std::endl;
+void set_NOB(dim3 nob){ NOB_global = nob; }
+void set_TPB(dim3 tpb){ TPB_global = tpb; }
+
+#define gpuErrchk(ans) { gpuAssert((ans), __FILE__, __LINE__); }
+inline void gpuAssert(cudaError_t code, const char* file, int line, bool abort = true){
+    if(code != cudaSuccess){
+        fprintf(stderr, "GPUassert: %s %s %d\n", cudaGetErrorString(code), file, line);
+        if(abort)
+			exit(code);
+    }
 }
 
 template <class T>
@@ -51,8 +45,23 @@ class mx{
 		__host__ __device__ std::size_t len() const { return dim * dim * sizeof(T); }
 
 		// geting 'val[]' value
-		__host__ __device__ T operator[](std::size_t n) const { return val[n]; }
-		__host__ __device__ T get_val(std::size_t r, std::size_t c) const { return val[(r - 1) * dim + (c - 1)]; }
+		__device__ T get_val(std::size_t r, std::size_t c) const { return val[(r - 1) * dim + (c - 1)]; }
+
+		__host__ T operator[](std::size_t n) const{
+			T* p = new T[dim * dim];
+			gpuErrchk(cudaMemcpy(p, val, this -> len(), cudaMemcpyDeviceToHost));
+			T result = p[n];
+			delete p;
+			return result;
+		}
+
+		__host__ T h_get_val(std::size_t r, std::size_t c) const{
+			T* p = new T[dim * dim];
+			gpuErrchk(cudaMemcpy(p, val, this -> len(), cudaMemcpyDeviceToHost));
+			T result = p[(r - 1) * dim + (c - 1)];
+			delete p;
+			return result;
+		}
 
 		// setting 'val[]' value
 		__host__ __device__ void set_val(std::size_t r, std::size_t c, T x) { val[(r - 1) * dim + (c - 1)] = x; }
@@ -78,7 +87,7 @@ class mx{
 			this -> init(NOB, TPB, v);
 		}
 
-		__host__ mx(dim3 NOB, dim3 TPB, mx<T> A, std::size_t r = 0, std::size_t c = 0){
+		__host__ mx(dim3 NOB, dim3 TPB, const mx<T>& A, std::size_t r = 0, std::size_t c = 0){
 			if(r * c == 0){
 				this -> devAlloc(A.get_dim());
 				this -> copy(NOB, TPB, A);
@@ -125,7 +134,7 @@ class mx{
 		}
 
 		// making minor
-		__host__ void minor(dim3 NOB, dim3 TPB, std::size_t r, std::size_t c, mx<T> A){
+		__host__ void minor(dim3 NOB, dim3 TPB, std::size_t r, std::size_t c, const mx<T>& A){
 			minor_gpu<<< NOB, TPB >>>(*this, r, c, A);
 			gpuErrchk(cudaPeekAtLastError());
     		gpuErrchk(cudaDeviceSynchronize());
@@ -141,108 +150,101 @@ class mx{
 		}
 
 		// copying matrix
-		__host__ void copy(dim3 NOB, dim3 TPB, mx<T> A){
-			if(this != &A){
-				if(val == nullptr)
-					this -> devAlloc(A.get_dim());
-				if(dim == A.get_dim()){
-					copy_gpu<<< NOB, TPB >>>(*this, A);
-                    gpuErrchk(cudaPeekAtLastError());
-    				gpuErrchk(cudaDeviceSynchronize());
-                }		
-				else
-					std::cout << "[E]: Invalid dimention! Copying is not possible!" << std::endl;
-			}
+		__host__ void copy(dim3 NOB, dim3 TPB, const mx<T>& A){
+			if(val == nullptr)
+				this -> devAlloc(A.get_dim());
+			if(dim == A.get_dim()){
+				copy_gpu<<< NOB, TPB >>>(*this, A);
+				gpuErrchk(cudaPeekAtLastError());
+				gpuErrchk(cudaDeviceSynchronize());
+			}		
+			else
+				std::cout << "[E]: Invalid dimention! Copying is not possible!" << std::endl;
 		}
 
 		// assigning matrix
-		// __host__ __device__ mx& operator=(const mx<T>& A){
-		// 	if(this == &A)
-		// 		return *this;
-		// 	if(dim != A.get_dim()){
-		// 		dim = A.get_dim();
-		// 		cudaFreeHost(val); // delete [] val;
-		// 		cudaMallocManaged(&val, dim * dim * sizeof(T)); // val = new T[dim * dim];
-		// 	}
-		// 	this -> copy(A);
-		// 	return *this;
-		// }
+		__host__ mx& operator=(const mx<T>& A){
+			if(this == &A)
+				return *this;
+			if(dim != A.get_dim())
+				this -> devAlloc(A.get_dim());
+			this -> copy(NOB_global, TPB_global, A);
+			return *this;
+		}
 
 		// matrices comparison
-		__host__ __device__ bool operator==(const mx<T>& A) const{
-			if(this == &A)
-				return true;
+		__host__ bool operator==(const mx<T>& A) const{
 			if(dim != A.get_dim())
 				return false;
-			std::size_t row = threadIdx.y + blockIdx.y * blockDim.y;
-            std::size_t col = threadIdx.x + blockIdx.x * blockDim.x;
-            if(val[row * dim + col] != A[row * dim + col])
-                return false;
-			return true;
+			bool result = true;
+			T* p1 = new T[dim * dim];
+			T* p2 = new T[dim * dim];
+			gpuErrchk(cudaMemcpy(p1, val, this -> len(), cudaMemcpyDeviceToHost));
+			gpuErrchk(cudaMemcpy(p2, *A.val_p, this -> len(), cudaMemcpyDeviceToHost));
+			for(int i = 0; i < dim * dim; i++)
+				if(p1[i] != p2[i])
+					result = false;
+			delete p1, p2;
+			return result;
 		}
 
 		// adding matrix
-		__host__ __device__ void add(const mx<T>& A){
+		__host__ void add(dim3 NOB, dim3 TPB, const mx<T>& A){
 			if(dim == A.get_dim()){
-                std::size_t row = threadIdx.y + blockIdx.y * blockDim.y;
-                std::size_t col = threadIdx.x + blockIdx.x * blockDim.x;
-				val[row * dim + col] += A[row * dim + col];
-            }
+				add_gpu<<< NOB, TPB >>>(*this, A);
+				gpuErrchk(cudaPeekAtLastError());
+				gpuErrchk(cudaDeviceSynchronize());
+			}
 			else
 				std::cout << "[E]: Invalid dimention! Addition is not possible!" << std::endl;
 		}
-		// __host__ __device__ mx operator+(const mx<T>& A) const{
-		// 	mx<T> result(dim);
-		// 	result.copy(*this);
-		// 	result.add(A);
-		// 	return result;
-		// }
-		// __host__ __device__ mx& operator+=(const mx<T>& A){
-		// 	this -> add(A);
-		// 	return *this;
-		// }
+		__host__ mx operator+(const mx<T>& A) const{
+			mx<T> result(NOB_global, TPB_global, *this);
+			result.add(NOB_global, TPB_global, A);
+			return result;
+		}
+		__host__ mx& operator+=(const mx<T>& A){
+			this -> add(NOB_global, TPB_global, A);
+			return *this;
+		}
 
 		// multiplying by scalar
-		__host__ __device__ void multiply_scalar(double x){
-			std::size_t row = threadIdx.y + blockIdx.y * blockDim.y;
-            std::size_t col = threadIdx.x + blockIdx.x * blockDim.x;
-			val[row * dim + col] *= x;
+		__host__ void multiply_scalar(dim3 NOB, dim3 TPB, T x){
+			multiply_scalar_gpu<<< NOB, TPB >>>(*this, x);
+			gpuErrchk(cudaPeekAtLastError());
+			gpuErrchk(cudaDeviceSynchronize());
 		}
-		// __host__ __device__ mx operator*(double x) const{
-		// 	mx<T> result(dim);
-		// 	result.copy(*this);
-		// 	result.multiply_scalar(-1.0);
-		// 	return result;
-		// }
-		// __host__ __device__ mx& operator*=(double x){
-		// 	this -> multiply_scalar(x);
-		// 	return *this;
-		// }
+		__host__ mx operator*(T x) const{
+			mx<T> result(NOB_global, TPB_global, *this);
+			result.multiply_scalar(NOB_global, TPB_global, x);
+			return result;
+		}
+		__host__ mx& operator*=(T x){
+			this -> multiply_scalar(NOB_global, TPB_global, x);
+			return *this;
+		}
 
 		// subtracting matrix
-		// __host__ __device__ void subtract(const mx<T>& A){
-		// 	this -> add(A*-1.0);
-		// }
-		// __host__ __device__ mx operator-(const mx<T>& A) const{
-		// 	mx<T> result(dim);
-		// 	result.copy(*this);
-		// 	result.subtract(A);
-		// 	return result;
-		// }
-		// __host__ __device__ mx& operator-=(const mx<T>& A){
-		// 	this -> subtract(A);
-		// 	return *this;
-		// }
+		__host__ void subtract(dim3 NOB, dim3 TPB, const mx<T>& A){
+			this -> add(NOB, TPB, A*-1.0);
+		}
+		__host__ mx operator-(const mx<T>& A) const{
+			mx<T> result(NOB_global, TPB_global, *this);
+			result.subtract(NOB_global, TPB_global, A);
+			return result;
+		}
+		__host__ mx& operator-=(const mx<T>& A){
+			this -> subtract(NOB_global, TPB_global, A);
+			return *this;
+		}
 
 		// transpozition
-		// __host__ __device__ void transpoze(){
-		// 	mx<T> temp(dim);
-		// 	temp.copy(*this);
-		// 	this -> init();
-		// 	std::size_t row = threadIdx.y + blockIdx.y * blockDim.y;
-        //     std::size_t col = threadIdx.x + blockIdx.x * blockDim.x;
-		// 	this -> set_val(col + 1, row + 1, temp.get_val(row + 1, col + 1));
-		// }
+		__host__ void transpoze(dim3 NOB, dim3 TPB){
+			mx<T> temp(NOB, TPB, *this);
+			this -> init(NOB, TPB);
+			transpoze_gpu<<< NOB, TPB >>>(*this, temp);
+			temp.devFree();
+		}
 
 		// multiplying by matrix
 		// __host__ __device__ void multiply_matrix(const mx<T>& A){
@@ -274,19 +276,19 @@ class mx{
 		// }
 
 		// determinant calculation helper
-		__host__ __device__ int find_best_row(std::size_t& r) const{
-			int n, n_max = 0;
-			std::size_t row = threadIdx.y + blockIdx.y * blockDim.y;
-			n = 0;
-			for(int j = 1; j <= dim; j++)
-				if((this -> get_val(row + 1, j)) == 0)
-					n++;
-			if(n > n_max){
-				n_max = n;
-				r = row;
-			}	
-			return n_max;
-		}
+		// __host__ __device__ int find_best_row(std::size_t& r) const{
+		// 	int n, n_max = 0;
+		// 	std::size_t row = threadIdx.y + blockIdx.y * blockDim.y;
+		// 	n = 0;
+		// 	for(int j = 1; j <= dim; j++)
+		// 		if((this -> get_val(row + 1, j)) == 0)
+		// 			n++;
+		// 	if(n > n_max){
+		// 		n_max = n;
+		// 		r = row;
+		// 	}	
+		// 	return n_max;
+		// }
 
 		// __host__ __device__ int find_best_column(std::size_t& c) const{
 		// 	mx<T> temp(dim);
@@ -377,6 +379,19 @@ __global__ void init_gpu(mx<T> A, T v = 0){
 		A.set_val(row + 1, col + 1, v);
 }
 
+// making identity matrix
+template <typename T>
+__global__ void identity_gpu(mx<T> A){
+	std::size_t row = threadIdx.y + blockIdx.y * blockDim.y;
+	std::size_t col = threadIdx.x + blockIdx.x * blockDim.x;
+	std::size_t dim = A.get_dim();
+	if(row < dim && col < dim){
+		A.set_val(row + 1, col + 1, 0);
+		if(row == col)
+			A.set_val(row + 1, col + 1, 1);
+	}
+}
+
 template <typename T>
 __global__ void copy_gpu(mx<T> R, mx<T> A){
 	std::size_t row = threadIdx.y + blockIdx.y * blockDim.y;
@@ -406,22 +421,36 @@ __global__ void minor_gpu(mx<T> M, std::size_t r, std::size_t c, mx<T> A){
 }
 
 template <typename T>
-std::ostream& operator<<(std::ostream& out, const mx<T>& A){
-	A.print(out);
-	return out;
+__global__ void add_gpu(mx<T> R, mx<T> A){
+	std::size_t row = threadIdx.y + blockIdx.y * blockDim.y;
+	std::size_t col = threadIdx.x + blockIdx.x * blockDim.x;
+	std::size_t dim = R.get_dim();
+	if(row < dim && col < dim)
+		R.set_val(row + 1, col + 1, R.get_val(row + 1, col + 1) + A.get_val(row + 1, col + 1));
 }
 
-// making identity matrix
 template <typename T>
-__global__ void identity_gpu(mx<T> A){
+__global__ void multiply_scalar_gpu(mx<T> A, T x){
 	std::size_t row = threadIdx.y + blockIdx.y * blockDim.y;
 	std::size_t col = threadIdx.x + blockIdx.x * blockDim.x;
 	std::size_t dim = A.get_dim();
-	if(row < dim && col < dim){
-		A.set_val(row + 1, col + 1, 0);
-		if(row == col)
-			A.set_val(row + 1, col + 1, 1);
-	}
+	if(row < dim && col < dim)
+		A.set_val(row + 1, col + 1, A.get_val(row + 1, col + 1) * x);
+}
+
+template <typename T>
+__global__ void transpoze_gpu(mx<T> R, mx<T> A){
+	std::size_t row = threadIdx.y + blockIdx.y * blockDim.y;
+	std::size_t col = threadIdx.x + blockIdx.x * blockDim.x;
+	std::size_t dim = R.get_dim();
+	if(row < dim && col < dim)
+		R.set_val(col + 1, row + 1, A.get_val(row + 1, col + 1));
+}
+
+template <typename T>
+std::ostream& operator<<(std::ostream& out, const mx<T>& A){
+	A.print(out);
+	return out;
 }
 
 // template <typename T>
