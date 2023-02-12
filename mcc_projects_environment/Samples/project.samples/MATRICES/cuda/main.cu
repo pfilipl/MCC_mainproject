@@ -28,12 +28,18 @@ int main(int argc, char **argv){
     gpuErrchk(cudaFree(0));
 
 	for(int i = 1; i <= ITERATIONS; i++){
-		mx<double> A(NOB, TPB, DIMS, 5);
+		mx<double> A(NOB, TPB, DIMS);
+		A.h_set_val(2, 4, 1);
+		A.h_set_val(1, 3, -3);
+		A.h_set_val(4, 1, 4);
+		A.h_set_val(3, 2, 6);
 		mx<double> B(NOB, TPB, DIMS);
-		B.random_int(10);
+		B.random_int(10, -5);
 		std::cout << A << B;
-		B.transpoze(NOB, TPB);
-		std::cout << B;
+		// std::size_t r = 0, n_max = 0;
+		// std::size_t p_r = &r, p_n_max = &n_max;
+		// B.find_best_row(NOB, TPB, p_r, p_n_max);
+		// std::cout << r << " " << n_max << std::endl;
 
 		A.devFree();
 		B.devFree();

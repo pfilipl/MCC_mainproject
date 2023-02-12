@@ -64,7 +64,15 @@ class mx{
 		}
 
 		// setting 'val[]' value
-		__host__ __device__ void set_val(std::size_t r, std::size_t c, T x) { val[(r - 1) * dim + (c - 1)] = x; }
+		__device__ void set_val(std::size_t r, std::size_t c, T x) { val[(r - 1) * dim + (c - 1)] = x; }
+
+		__host__ void h_set_val(std::size_t r, std::size_t c, T x){
+			T* p = new T[dim * dim];
+			gpuErrchk(cudaMemcpy(p, val, this -> len(), cudaMemcpyDeviceToHost));
+			p[(r - 1) * dim + (c - 1)] = x;
+			gpuErrchk(cudaMemcpy(val, p, this -> len(), cudaMemcpyHostToDevice));
+			delete p;
+		}
 
 		// printing matrix to the stream
 		__host__ void print(std::ostream& out) const{
@@ -243,51 +251,43 @@ class mx{
 			mx<T> temp(NOB, TPB, *this);
 			this -> init(NOB, TPB);
 			transpoze_gpu<<< NOB, TPB >>>(*this, temp);
+			gpuErrchk(cudaPeekAtLastError());
+			gpuErrchk(cudaDeviceSynchronize());
 			temp.devFree();
 		}
 
 		// multiplying by matrix
-		// __host__ __device__ void multiply_matrix(const mx<T>& A){
-		// 	if(dim != A.get_dim())
-		// 		std::cout << "[E]: Invalid dimention! Multiplying is not possible!" <<std::endl;
-		// 	else{
-		// 		mx<T> result(dim);
-		// 		T x;
-		// 		std::size_t row = threadIdx.y + blockIdx.y * blockDim.y;
-        //     	std::size_t col = threadIdx.x + blockIdx.x * blockDim.x;
-		// 		for(int k = 1; k <= dim; k++){
-		// 			if(k == 1)
-		// 				x = 0;
-		// 				x += (this -> get_val(row + 1, k)) * A.get_val(k, col + 1);
-		// 		}
-		// 		result.set_val(row + 1, col + 1, x);
-		// 		this -> copy(result);
-		// 	}	
-		// }
-		// __host__ __device__ mx operator*(const mx<T>& A) const{
-		// 	mx<T> result(dim);
-		// 	result.copy(*this);
-		// 	result.multiply_matrix(A);
-		// 	return result;
-		// }
-		// __host__ __device__ mx& operator*=(const mx<T>& A){
-		// 	this -> multiply_matrix(A);
-		// 	return *this;
-		// }
+		__host__ void multiply_matrix(dim3 NOB, dim3 TPB, const mx<T>& A){
+			if(dim != A.get_dim())
+				std::cout << "[E]: Invalid dimention! Multiplying is not possible!" <<std::endl;
+			else{
+				mx<T> temp(NOB, TPB, dim);
+				multiply_matrix_gpu<<< NOB, TPB >>>(*this, A, temp);
+				gpuErrchk(cudaPeekAtLastError());
+				gpuErrchk(cudaDeviceSynchronize());
+				this -> copy(NOB, TPB, temp);
+				temp.devFree();
+			}	
+		}
+		__host__ mx operator*(const mx<T>& A) const{
+			mx<T> result(NOB_global, TPB_global, *this);
+			result.multiply_matrix(NOB_global, TPB_global, A);
+			return result;
+		}
+		__host__ mx& operator*=(const mx<T>& A){
+			this -> multiply_matrix(NOB_global, TPB_global, A);
+			return *this;
+		}
 
 		// determinant calculation helper
-		// __host__ __device__ int find_best_row(std::size_t& r) const{
-		// 	int n, n_max = 0;
-		// 	std::size_t row = threadIdx.y + blockIdx.y * blockDim.y;
-		// 	n = 0;
-		// 	for(int j = 1; j <= dim; j++)
-		// 		if((this -> get_val(row + 1, j)) == 0)
-		// 			n++;
-		// 	if(n > n_max){
-		// 		n_max = n;
-		// 		r = row;
-		// 	}	
-		// 	return n_max;
+		// __host__ void find_best_row(dim3 NOB, dim3 TPB, std::size_t* h_r, std::size_t* h_n_max) const{
+		// 	std::size_t r = 0, n_max = 0;
+		// 	std::size_t* p_r = &r, p_n_max = &n_max;
+		// 	find_best_row_gpu<<< NOB, TPB >>>(*this, r, n_max);
+		// 	gpuErrchk(cudaPeekAtLastError());
+		// 	gpuErrchk(cudaDeviceSynchronize());
+		// 	gpuErrchk(cudaMemcpy(h_r, p_r, sizeof(std::size_t), cudaMemcpyDeviceToHost));
+		// 	gpuErrchk(cudaMemcpy(h_n_max, p_n_max, sizeof(std::size_t), cudaMemcpyDeviceToHost));
 		// }
 
 		// __host__ __device__ int find_best_column(std::size_t& c) const{
@@ -446,6 +446,41 @@ __global__ void transpoze_gpu(mx<T> R, mx<T> A){
 	if(row < dim && col < dim)
 		R.set_val(col + 1, row + 1, A.get_val(row + 1, col + 1));
 }
+
+template <typename T>
+__global__ void multiply_matrix_gpu(mx<T> M, mx<T> A, mx<T> R){
+	T x;
+	std::size_t row = threadIdx.y + blockIdx.y * blockDim.y;
+	std::size_t col = threadIdx.x + blockIdx.x * blockDim.x;
+	std::size_t dim = R.get_dim();
+	if(row < dim && col < dim){
+		for(int k = 1; k <= dim; k++){
+			if(k == 1)
+				x = 0;
+			x += M.get_val(row + 1, k) * A.get_val(k, col + 1);
+		}
+		R.set_val(row + 1, col + 1, x);
+	}
+}
+
+// template <typename T>
+// __global__ void find_best_row_gpu(mx<T> A, std::size_t& r, std::size_t& n_max){
+// 	int n;
+// 	std::size_t row = threadIdx.y + blockIdx.y * blockDim.y;
+// 	std::size_t col = threadIdx.x + blockIdx.x * blockDim.x;
+// 	std::size_t dim = A.get_dim();
+// 	if(row < dim && col == 1)
+// 		for(int j = 1; j <= dim; j++){
+// 			if(j == 1)
+// 				n = 0;
+// 			if(A.get_val(row + 1, j) == 0)
+// 				n++;
+// 			if(j == dim && n > n_max){
+// 				n_max = n;
+// 				r = row;
+// 			}
+// 		}	
+// }
 
 template <typename T>
 std::ostream& operator<<(std::ostream& out, const mx<T>& A){
