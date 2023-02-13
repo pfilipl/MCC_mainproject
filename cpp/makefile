@@ -1,4 +1,4 @@
-CXX=clang++
+CXX=g++
 CXXFLAGS=-c -Wall -g -pedantic
 LFLAGS=
 OBJS=main.o mx.o

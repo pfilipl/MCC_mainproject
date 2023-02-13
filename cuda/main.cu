@@ -5,7 +5,16 @@
 int main(int argc, char **argv){
   
 	int DIMS, THREADS, ITERATIONS;
-	DIMS = argc > 1 ? atoi(argv[1]) : 5;
+	std::string fout_name = "mul_out";
+	if(argc > 1){
+		DIMS = atoi(argv[1]);
+		fout_name += argv[1];
+	}
+	else{
+		DIMS = 5;
+		fout_name += "5";
+	}
+	fout_name += ".txt";
 	THREADS = argc > 2 ? atoi(argv[2]) : 16;
 	ITERATIONS = argc > 3 ? atoi(argv[3]) : 1;
 		
@@ -24,34 +33,36 @@ int main(int argc, char **argv){
 
 	std::ifstream fin("in.txt");
 	// std::ofstream foutin("in.txt");
-	std::ofstream fout("out.txt");
+	std::ofstream fout(fout_name);
 
 	gpuErrchk(cudaSetDevice(0));
     gpuErrchk(cudaFree(0));
 
 	mx<double> A(NOB, TPB, DIMS);
+	mx<double> B(NOB, TPB, DIMS);
 	mx<double> C(NOB, TPB, DIMS);
 	// A.random_int(10, -5);
 	// foutin << A;
 
-	double x;
+	double x, y;
 	for(int j = 0; j < DIMS * DIMS; j++){
-		fin >> x;
+		fin >> x >> y;
 		A.h_set_val(j, x);
+		B.h_set_val(j, y);
 	}
+
+	double det;
 
 	auto start = std::chrono::steady_clock::now();
 	for(int i = 1; i <= ITERATIONS; i++){
-		mx<double> B(NOB, TPB, A.inverse(NOB, TPB));
-		if(i == ITERATIONS)
-			C = B;
-		B.devFree();		
+		C = A * B;
 	}
 	auto stop = std::chrono::steady_clock::now();
 	std::chrono::duration<double> time = stop - start;
 
-	fout << A << C << std::endl << time.count() / ITERATIONS << std::endl;
+	fout << A << B << C << std::endl << time.count() / ITERATIONS << std::endl;
 	A.devFree();
+	B.devFree();
 	C.devFree();
 
 	fin.close();

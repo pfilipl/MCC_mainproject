@@ -1,118 +1,49 @@
 #include "mx.hpp"
 #include <cstring>
 #include <chrono>
+#include <fstream>
 
 int main(int argc, char **argv) {
-	// std::cout << "Hello world!" << std::endl;
-
-	// mx<int> A(2);
-	// A.init(5);
-	// A.print();
-
-	// mx<double> B(6, 3.14);
-	// B.print();
-
-	// mx<int> C(3);
-	// C.identity();
-	// C.print();
-	// std::cout << std::endl;
-
-	// std::cout << "To jest macierz C:" << C << "B:" << B << "A:" << A <<
-	// std::endl;
-
-	mx<double> A(3, 3);
-	mx<double> B(3, 4);
-	mx<double> C(2, 3);
-	mx<double> I(3);
-	I.identity();
-	
-	// std::cout << A << B << std::endl;
-	// A = B;
-	// std::cout << A << B << std::endl;
-	// if(A == B)
-	// 	std::cout << "A is equal to B" << std::endl;
-	// else
-	// 	std::cout << "A is not equal to B" << std::endl;
-
-	// std::cout << A << B << std::endl;
-	// A.add(B);
-	// std::cout << A << B << std::endl;
-	// A = A + B;
-	// std::cout << A << B << std::endl;
-	// A += I;
-	// std::cout << A + I << std::endl;
-
-	// std::cout << A << B << std::endl;
-	// A.subtract(B);
-	// std::cout << A << B << std::endl;
-	// A = A - B;
-	// std::cout << A << B << std::endl;
-	// std::cout << A - I << std::endl;
-
-	// std::cout << B << std::endl;
-	// B.enter_val(3, 2, 2.1);
-	// B.enter_val(1, 3, 8.2);
-	// B += I;
-	// std::cout << B << std::endl;
-	// B.transpoze();
-	// std::cout << B << std::endl;
-
-	B.enter_val(2, 3, 0);
-	B.enter_val(1, 3, 1);
-	B.enter_val(2, 1, -5);	
-	B.enter_val(3, 2, 0);	
-	B.enter_val(2, -1, 0);
-	C.enter_val(1, 2, 0);
-	C.enter_val(2, 2, 10);
-	// A.enter_val(2, 2, 0);
-	// A.enter_val(2, 3, -6);
-	// std::cout << A << B << std::endl;
-	// A.multiply_matrix(B);
-	// std::cout << A << std::endl;
-	// A *= B;
-	// std::cout << A << std::endl;
-	// std::cout << A * B << std::endl;
-
-	// mx<double> D(1, 3.14);
-	// mx<double> E(4, 5);
-	// mx<double> Z;
-	// std::cout << B.det() << " " << C.det() << " " << E.det() << " " << Z.det() << std::endl;
-
-	// mx<double> R(3);
-	// R.random_int(10, 5);
-	// std::cout << R << std::endl;
-	// R.random();
-	// std::cout << R << std::endl;
-
-	// mx<int> M(E, 2, 3);
-	// std::cout << E << M << std::endl;
-	// std::cout << E << E.det() << std::endl;
-
+	int DIMS;
+	std::string fout_name = "mul_out";
 	if(argc > 1){
-		mx<double> E(std::stoi(argv[1]));
-		E.random_int(10, -5);
-		// std::cout << E << E.det() << std::endl;
-		// E.invert();
-		// std::cout << E << std::endl;
-		std::cout << E << std::endl;
-		auto start = std::chrono::steady_clock::now();
-		std::cout << E.det() << std::endl;
-		auto stop_det = std::chrono::steady_clock::now();
-		std::cout << E.inverse() << std::endl;
-		auto stop_inverse = std::chrono::steady_clock::now();
-		std::chrono::duration<double> time_det = stop_det - start;
-		std::chrono::duration<double> time_inverse = stop_inverse - stop_det;
-		std::cout << time_det.count() << " " << time_inverse.count() << std::endl;
+		DIMS = atoi(argv[1]);
+		fout_name += argv[1];
 	}
 	else{
-		mx<double> E(5);
-		E.random_int(10);
-		// std::cout << E << E.det() << std::endl;
-		// std::cout << E << E.det() << std::endl;
-		// E.invert();
-		// std::cout << E << std::endl;
-		std::cout << E << E.det() << E.inverse() << std::endl;
+		DIMS = 5;
+		fout_name += "5";
+	}
+	fout_name += ".txt";
+		
+	printf("DIMS=%d\n", DIMS);
+
+	std::ifstream fin("in.txt");
+	// std::ofstream foutin("in.txt");
+	std::ofstream fout(fout_name);
+
+	mx<double> A(DIMS);
+	mx<double> B(DIMS);
+	mx<double> C(DIMS);
+	// A.random_int(10, -5);
+	// foutin << A;
+
+	double x, y;
+	for(int j = 0; j < DIMS * DIMS; j++){
+		fin >> x >> y;
+		A.set_val(j, x);
+		B.set_val(j, y);
 	}
 
+	auto start = std::chrono::steady_clock::now();
+	C = A * B;
+	auto stop = std::chrono::steady_clock::now();
+	std::chrono::duration<double> time = stop - start;
+
+	fout << A << B << C << std::endl << time.count() << std::endl;
+
+	fin.close();
+	// foutin.close();
+	fout.close();
 	return 0;
 }

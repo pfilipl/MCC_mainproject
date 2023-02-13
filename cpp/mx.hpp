@@ -77,9 +77,13 @@ class mx{
 			return val[(r - 1) * dim + (c - 1)];
 		}
 
-		// entering 'val[]' value
+		// seting 'val[]' value
 		void set_val(std::size_t r, std::size_t c, T x){
 			val[(r - 1) * dim + (c - 1)] = x;
+		}
+
+		void set_val(std::size_t n, T x){
+			val[n] = x;
 		}
 
 		// printing matrix to the stream
@@ -264,11 +268,13 @@ class mx{
 					std::size_t r = 1, c = 1, n;
 					int zero_count_r = this -> find_best_row(r);
 					int zero_count_c = this -> find_best_column(c);
+					if(zero_count_r == dim || zero_count_c == dim)
+						break;
 					if(zero_count_r >= zero_count_c){
 						n = r;
 						for(int i = 1; i <= dim; i++){
 							mx<T> M(*this, n, i);
-							if((1 + i) % 2 == 0)
+							if((n + i) % 2 == 0)
 								x += (this -> get_val(n, i)) * M.det();
 							else
 								x -= (this -> get_val(n, i)) * M.det();
@@ -278,7 +284,7 @@ class mx{
 						n = c;
 						for(int i = 1; i <= dim; i++){
 							mx<T> M(*this, i, n);
-							if((1 + i) % 2 == 0)
+							if((n + i) % 2 == 0)
 								x += (this -> get_val(i, n)) * M.det();
 							else
 								x -= (this -> get_val(i, n)) * M.det();
@@ -298,7 +304,10 @@ class mx{
 				for(int i = 1; i <= dim; i++)
 					for(int j = 1; j <= dim; j++){
 						mx<T> M(*this, i, j);
-						cofactor.set_val(i, j, M.det());
+						if((i + j) % 2 == 0)
+							cofactor.set_val(i, j, M.det());
+						else
+							cofactor.set_val(i, j, -M.det());
 					}
 				cofactor.transpoze();
 				cofactor.multiply_scalar(1/det);
