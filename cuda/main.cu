@@ -36,11 +36,9 @@ int main(int argc, char **argv){
 		mx<double> B(NOB, TPB, DIMS);
 		B.random_int(10, -5);
 		std::cout << A << B;
-		std::cout << A.det(NOB, TPB);
-		// std::size_t r = 0, n_max = 0;
-		// std::size_t p_r = &r, p_n_max = &n_max;
-		// B.find_best_row(NOB, TPB, p_r, p_n_max);
-		// std::cout << r << " " << n_max << std::endl;
+		std::cout << A.det(NOB, TPB) << " " << B.det(NOB, TPB) << std::endl;
+		B.invert(NOB, TPB);
+		std::cout << B;
 
 		A.devFree();
 		B.devFree();

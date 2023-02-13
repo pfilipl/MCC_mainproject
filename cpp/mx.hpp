@@ -28,13 +28,13 @@ class mx{
 					if(i == r || j == c)
 						continue;
 					if(i > r && j > c)
-						this -> enter_val(i - 1, j - 1, A.get_val(i, j));
+						this -> set_val(i - 1, j - 1, A.get_val(i, j));
 					else if(i > r)
-						this -> enter_val(i - 1, j, A.get_val(i, j));
+						this -> set_val(i - 1, j, A.get_val(i, j));
 					else if(j > c)
-						this -> enter_val(i, j - 1, A.get_val(i, j));
+						this -> set_val(i, j - 1, A.get_val(i, j));
 					else
-						this -> enter_val(i, j, A.get_val(i, j));
+						this -> set_val(i, j, A.get_val(i, j));
 				}
 		}
 
@@ -78,7 +78,7 @@ class mx{
 		}
 
 		// entering 'val[]' value
-		void enter_val(std::size_t r, std::size_t c, T x){
+		void set_val(std::size_t r, std::size_t c, T x){
 			val[(r - 1) * dim + (c - 1)] = x;
 		}
 
@@ -185,7 +185,7 @@ class mx{
 			this -> init();
 			for(int i = 1; i <= dim; i++)
 				for(int j = 1; j <= dim; j++)
-					this -> enter_val(j, i, temp.get_val(i, j));
+					this -> set_val(j, i, temp.get_val(i, j));
 		}
 
 		// multiplying by matrix
@@ -200,7 +200,7 @@ class mx{
 						x = 0;
 						for(int k = 1; k <= dim; k++)
 							x += (this -> get_val(i, k)) * A.get_val(k, j);
-						result.enter_val(i, j, x);
+						result.set_val(i, j, x);
 					}
 				this -> copy(result);
 			}	
@@ -298,7 +298,7 @@ class mx{
 				for(int i = 1; i <= dim; i++)
 					for(int j = 1; j <= dim; j++){
 						mx<T> M(*this, i, j);
-						cofactor.enter_val(i, j, M.det());
+						cofactor.set_val(i, j, M.det());
 					}
 				cofactor.transpoze();
 				cofactor.multiply_scalar(1/det);

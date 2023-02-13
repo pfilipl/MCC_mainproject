@@ -292,13 +292,11 @@ class mx{
 			gpuErrchk(cudaDeviceSynchronize());
 			gpuErrchk(cudaMemcpy(h_n, n, dim * sizeof(T), cudaMemcpyDeviceToHost));
 			gpuErrchk(cudaFree(n));
-			for(int i = 0; i < dim; i++){
-				std::cout << i << ": " <<  h_n[i] << std::endl;
+			for(int i = 0; i < dim; i++)
 				if(h_n[i] > *n_max){
 					*n_max = h_n[i];
 					*r = i + 1;
 				}
-			}
 			delete h_n;
 		}
 
@@ -312,23 +310,25 @@ class mx{
 		// determinant
 		__host__ T det(dim3 NOB, dim3 TPB) const{
 			T x = 0;
+			T* p = new T[dim * dim];
+			gpuErrchk(cudaMemcpy(p, val, this -> len(), cudaMemcpyDeviceToHost));
 			switch(dim){
 				case 0:
 					std::cout << "[E]: Invalid dimention!" << std::endl;
 					break;
 				case 1:
-					x = val[0];
+					x = p[0];
 					break;
 				case 2:
-					x = val[0] * val[3] - val[1] * val[2];
+					x = p[0] * p[3] - p[1] * p[2];
 					break;
 				case 3:
-					x += val[0] * val[4] * val[8];
-					x += val[3] * val[7] * val[2];
-					x += val[6] * val[1] * val[5];
-					x -= val[2] * val[4] * val[6];
-					x -= val[5] * val[7] * val[0];
-					x -= val[8] * val[1] * val[3];
+					x += p[0] * p[4] * p[8];
+					x += p[3] * p[7] * p[2];
+					x += p[6] * p[1] * p[5];
+					x -= p[2] * p[4] * p[6];
+					x -= p[5] * p[7] * p[0];
+					x -= p[8] * p[1] * p[3];
 					break;
 				default:
 					std::size_t r = 1, c = 1, n, zero_count_r = 0, zero_count_c = 0;
@@ -338,52 +338,61 @@ class mx{
 					std::size_t* p_zero_count_c = &zero_count_c;
 					this -> find_best_row(NOB, TPB, p_r, p_zero_count_r);
 					this -> find_best_column(NOB, TPB, p_c, p_zero_count_c);
+					if(zero_count_r == dim || zero_count_c == dim)
+						break;
 					if(zero_count_r >= zero_count_c){
 						n = r;
 						for(int i = 1; i <= dim; i++){
 							mx<T> M(NOB, TPB, *this, n, i);
-							if((1 + i) % 2 == 0)
+							if((n + i) % 2 == 0)
 								x += (this -> h_get_val(n, i)) * M.det(NOB, TPB);
 							else
 								x -= (this -> h_get_val(n, i)) * M.det(NOB, TPB);
+							M.devFree();
 						}
 					}
 					else{
 						n = c;
 						for(int i = 1; i <= dim; i++){
 							mx<T> M(NOB, TPB, *this, i, n);
-							if((1 + i) % 2 == 0)
+							if((n + i) % 2 == 0)
 								x += (this -> h_get_val(i, n)) * M.det(NOB, TPB);
 							else
 								x -= (this -> h_get_val(i, n)) * M.det(NOB, TPB);
+							M.devFree();
 						}
 					}
 			}
+			delete p;
 			return x;
 		}
 
 		// inverse matrix
-		// __host__ __device__ void invert(){
-		// 	T det = this -> det();
-		// 	if(!det)
-		// 		std::cout << "Matrix is noninversable!" << std::endl;
-		// 	else{
-		// 		mx<T> cofactor(dim);
-		// 		std::size_t row = threadIdx.y + blockIdx.y * blockDim.y;
-        //     	std::size_t col = threadIdx.x + blockIdx.x * blockDim.x;
-		// 		mx<T> M(*this, row + 1, col + 1);
-		// 		cofactor.set_val(row + 1, col + 1, M.det());
-		// 		cofactor.transpoze();
-		// 		cofactor.multiply_scalar(1/det);
-		// 		this -> copy(cofactor);
-		// 	}
-		// }
-		// __host__ __device__ mx inverse() const{
-		// 	mx<T> result(dim);
-		// 	result.copy(*this);
-		// 	result.invert();
-		// 	return result;
-		// }
+		__host__ void invert(dim3 NOB, dim3 TPB){
+			T det = this -> det(NOB, TPB);
+			if(!det)
+				std::cout << "Matrix is noninversable!" << std::endl;
+			else{
+				mx<T> cofactor(NOB, TPB, dim);
+				for(int i = 1; i <= dim; i++)
+					for(int j = 1; j <= dim; j++){
+						mx<T> M(NOB, TPB, *this, i, j);
+						if((i + j) % 2 == 0)
+							cofactor.h_set_val(i, j, M.det(NOB, TPB));
+						else
+							cofactor.h_set_val(i, j, -M.det(NOB, TPB));
+						M.devFree();
+					}
+				cofactor.transpoze(NOB, TPB);
+				cofactor.multiply_scalar(NOB, TPB, 1/det);
+				this -> copy(NOB, TPB, cofactor);
+			}
+		}
+		__host__ mx inverse(dim3 NOB, dim3 TPB) const{
+			mx<T> result(NOB, TPB, *this);
+			result.invert(NOB, TPB);
+			return result;
+		}
 };
 
 template<typename T>
@@ -427,9 +436,9 @@ __global__ void minor_gpu(mx<T> M, std::size_t r, std::size_t c, mx<T> A){
 	if(row < dim + 1 && col < dim + 1){
 		if(row > r && col > c)
 			M.set_val(row, col, A.get_val(row + 1, col + 1));
-		else if(row > r)
+		else if(row > r && col != c)
 			M.set_val(row, col + 1, A.get_val(row + 1, col + 1));
-		else if(col > c)
+		else if(col > c && row != r)
 			M.set_val(row + 1, col, A.get_val(row + 1, col + 1));
 		else if(row != r && col != c)
 			M.set_val(row + 1, col + 1, A.get_val(row + 1, col + 1));
@@ -484,9 +493,10 @@ __global__ void find_best_row_gpu(mx<T> A, T* n){
 	std::size_t row = threadIdx.y + blockIdx.y * blockDim.y;
 	std::size_t col = threadIdx.x + blockIdx.x * blockDim.x;
 	std::size_t dim = A.get_dim();
-	if(row < dim && col < dim)
-		if(A.get_val(row + 1, col + 1) == 0)
-			n[row]++;
+	if(row < dim && col == 0)
+		for(int i = 1; i <= dim; i++)
+			if(A.get_val(row + 1, i) == 0)
+				n[row]++;
 }
 
 template <typename T>
