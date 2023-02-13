@@ -1,6 +1,6 @@
 #include "mx.cuh"
 #include <chrono>
-// #include <fstream>
+#include <fstream>
 
 int main(int argc, char **argv){
   
@@ -22,28 +22,40 @@ int main(int argc, char **argv){
 	dim3 NOB = number_of_blocks;
 	dim3 TPB = threads_per_block;
 
-	// std::ofstream fout("out.txt");
+	std::ifstream fin("in.txt");
+	// std::ofstream foutin("in.txt");
+	std::ofstream fout("out.txt");
 
 	gpuErrchk(cudaSetDevice(0));
     gpuErrchk(cudaFree(0));
 
-	for(int i = 1; i <= ITERATIONS; i++){
-		mx<double> A(NOB, TPB, DIMS);
-		A.h_set_val(2, 3, 1);
-		A.h_set_val(1, 3, -3);
-		A.h_set_val(2, 1, 4);
-		A.h_set_val(3, 2, 6);
-		mx<double> B(NOB, TPB, DIMS);
-		B.random_int(10, -5);
-		std::cout << A << B;
-		std::cout << A.det(NOB, TPB) << " " << B.det(NOB, TPB) << std::endl;
-		B.invert(NOB, TPB);
-		std::cout << B;
+	mx<double> A(NOB, TPB, DIMS);
+	mx<double> C(NOB, TPB, DIMS);
+	// A.random_int(10, -5);
+	// foutin << A;
 
-		A.devFree();
-		B.devFree();
+	double x;
+	for(int j = 0; j < DIMS * DIMS; j++){
+		fin >> x;
+		A.h_set_val(j, x);
 	}
 
-	// fout.close();
+	auto start = std::chrono::steady_clock::now();
+	for(int i = 1; i <= ITERATIONS; i++){
+		mx<double> B(NOB, TPB, A.inverse(NOB, TPB));
+		if(i == ITERATIONS)
+			C = B;
+		B.devFree();		
+	}
+	auto stop = std::chrono::steady_clock::now();
+	std::chrono::duration<double> time = stop - start;
+
+	fout << A << C << std::endl << time.count() / ITERATIONS << std::endl;
+	A.devFree();
+	C.devFree();
+
+	fin.close();
+	// foutin.close();
+	fout.close();
 	return 0;
 }

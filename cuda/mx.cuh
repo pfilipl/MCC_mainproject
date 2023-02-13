@@ -66,12 +66,16 @@ class mx{
 		// setting 'val[]' value
 		__device__ void set_val(std::size_t r, std::size_t c, T x) { val[(r - 1) * dim + (c - 1)] = x; }
 
-		__host__ void h_set_val(std::size_t r, std::size_t c, T x){
+		__host__ void h_set_val(std::size_t n, T x){
 			T* p = new T[dim * dim];
 			gpuErrchk(cudaMemcpy(p, val, this -> len(), cudaMemcpyDeviceToHost));
-			p[(r - 1) * dim + (c - 1)] = x;
+			p[n] = x;
 			gpuErrchk(cudaMemcpy(val, p, this -> len(), cudaMemcpyHostToDevice));
 			delete p;
+		}
+
+		__host__ void h_set_val(std::size_t r, std::size_t c, T x){
+			h_set_val(r * dim + c, x);
 		}
 
 		// printing matrix to the stream
@@ -368,6 +372,33 @@ class mx{
 		}
 
 		// inverse matrix
+		// __host__ void invert(dim3 NOB, dim3 TPB){
+		// 	T det = this -> det(NOB, TPB);
+		// 	if(!det)
+		// 		std::cout << "Matrix is noninversable!" << std::endl;
+		// 	else{
+		// 		mx<T> cofactor(NOB, TPB, dim);
+		// 		mx<T>* M = new mx<T>[dim * dim];
+		// 		T* M_det = new T[dim * dim];
+		// 		for(int i = 1; i <= dim; i++)
+		// 			for(int j = 1; j <= dim; j++){
+		// 				mx<T> M[i * dim + j](NOB, TPB, *this, i, j);
+		// 				M_det[i * dim + j] = M[i * dim + j].det(NOB, TPB);
+		// 			}
+		// 		// T* d_M_det = new T[dim * dim];
+		// 		// cudaErrchk(cudaMemcpy(d_M_det, M_det, this -> len(), cudaMemcpyHostToDevice));
+		// 		cofactor_gpu<<< NOB, TPB >>>(M, cofactor, M_det);
+		// 		gpuErrchk(cudaPeekAtLastError());
+		// 		gpuErrchk(cudaDeviceSynchronize());
+		// 		for(int i = 0; i < dim * dim; i++)
+		// 			M[i].devFree();
+		// 		delete M, M_det;
+		// 		cofactor.transpoze(NOB, TPB);
+		// 		cofactor.multiply_scalar(NOB, TPB, 1/det);
+		// 		this -> copy(NOB, TPB, cofactor);
+		// 	}
+		// }
+
 		__host__ void invert(dim3 NOB, dim3 TPB){
 			T det = this -> det(NOB, TPB);
 			if(!det)
@@ -386,8 +417,10 @@ class mx{
 				cofactor.transpoze(NOB, TPB);
 				cofactor.multiply_scalar(NOB, TPB, 1/det);
 				this -> copy(NOB, TPB, cofactor);
+				cofactor.devFree();
 			}
 		}
+
 		__host__ mx inverse(dim3 NOB, dim3 TPB) const{
 			mx<T> result(NOB, TPB, *this);
 			result.invert(NOB, TPB);
@@ -499,18 +532,23 @@ __global__ void find_best_row_gpu(mx<T> A, T* n){
 				n[row]++;
 }
 
+// template <typename T>
+// __global__ void cofactor_gpu(mx<T>* M, mx<T> A, T* det){
+// 	std::size_t row = threadIdx.y + blockIdx.y * blockDim.y;
+// 	std::size_t col = threadIdx.x + blockIdx.x * blockDim.x;
+// 	std::size_t dim = A.get_dim();
+// 	if(row < dim && col < dim){
+// 		if((row + col) % 2 == 0)
+// 			A.set_val(row + 1, col + 1, det[row * dim + col]);
+// 		else
+// 			A.set_val(row + 1, col + 1, -det[row * dim + col]);
+// 	}
+// }
+
 template <typename T>
 std::ostream& operator<<(std::ostream& out, const mx<T>& A){
 	A.print(out);
 	return out;
 }
-
-// template <typename T>
-// __global__ void test(mx<T> A, T v){
-// 	std::size_t row = threadIdx.y + blockIdx.y * blockDim.y;
-// 	std::size_t col = threadIdx.x + blockIdx.x * blockDim.x;
-// 	if(row < A.get_dim() && col < A.get_dim())
-// 		A.set_val(row + 1, col + 1, v);
-// }
 
 #endif
